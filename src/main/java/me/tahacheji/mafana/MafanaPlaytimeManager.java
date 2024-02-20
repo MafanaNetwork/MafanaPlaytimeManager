@@ -37,13 +37,12 @@ public final class MafanaPlaytimeManager extends JavaPlugin {
                     }
                 }
             }
-        }.runTaskTimer(this, 0L, 20L);
+        }.runTaskTimerAsynchronously(this, 0L, 20L);
     }
 
     @Override
     public void onDisable() {
         playtimeDatabase.disconnect();
-
     }
 
     public void removePlayerPlaytime(Player player) {
