@@ -7,15 +7,20 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerQuitEvent;
 
+import java.util.concurrent.CompletableFuture;
+
 public class PlayerLeave implements Listener {
 
     @EventHandler
     public void onLeave(PlayerQuitEvent event) {
         Player player = event.getPlayer();
-        PlayerPlaytime playtime = MafanaPlaytimeManager.getInstance().getPlayerPlaytime(player);
-        if(playtime != null) {
-            MafanaPlaytimeManager.getInstance().getPlaytimeDatabase().updatePlaytimeForTheDay(playtime);
-            MafanaPlaytimeManager.getInstance().removePlayerPlaytime(player);
-        }
+        CompletableFuture.supplyAsync(() -> {
+            PlayerPlaytime playtime = MafanaPlaytimeManager.getInstance().getPlayerPlaytime(player);
+            if(playtime != null) {
+                MafanaPlaytimeManager.getInstance().getPlaytimeDatabase().updatePlaytimeForTheDay(playtime);
+                MafanaPlaytimeManager.getInstance().removePlayerPlaytime(player);
+            }
+            return null;
+        });
     }
 }

@@ -7,16 +7,20 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerJoinEvent;
 
+import java.util.concurrent.CompletableFuture;
+
 public class PlayerJoin implements Listener {
 
 
     @EventHandler
     public void onJoin(PlayerJoinEvent event) {
         Player player = event.getPlayer();
-        MafanaPlaytimeManager.getInstance().getPlaytimeDatabase().addPlayer(player);
-        MafanaPlaytimeManager.getInstance().getPlaytimeDatabase().addPlaytimeForTheDay(player);
-        PlayerPlaytime playtime = new PlayerPlaytime(player, 0);
-        MafanaPlaytimeManager.getInstance().getPlayerPlaytimeList().add(playtime);
-
+        CompletableFuture.supplyAsync(() -> {
+            MafanaPlaytimeManager.getInstance().getPlaytimeDatabase().addPlayer(player);
+            MafanaPlaytimeManager.getInstance().getPlaytimeDatabase().addPlaytimeForTheDay(player.getUniqueId());
+            PlayerPlaytime playtime = new PlayerPlaytime(player, 0);
+            MafanaPlaytimeManager.getInstance().getPlayerPlaytimeList().add(playtime);
+            return null;
+        });
     }
 }
