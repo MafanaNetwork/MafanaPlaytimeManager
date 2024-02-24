@@ -22,15 +22,20 @@ public class PlaytimeDatabase extends MySQL {
     }
 
     public CompletableFuture<Void> addPlayer(Player player) {
-        return CompletableFuture.supplyAsync(() -> {
-            UUID uuid = player.getUniqueId();
-            if (!sqlGetter.exists(uuid)) {
-                sqlGetter.setStringAsync(new DatabaseValue("NAME", uuid, player.getName()));
-                sqlGetter.setStringAsync(new DatabaseValue("PLAYTIME", uuid, ""));
-            }
-            return null;
-        });
+        UUID uuid = player.getUniqueId();
+        return sqlGetter.existsAsync(uuid)
+                .thenApplyAsync(exists -> {
+                    if (!exists) {
+                        sqlGetter.setStringAsync(new DatabaseValue("NAME", uuid, player.getName()));
+                        sqlGetter.setStringAsync(new DatabaseValue("PLAYTIME", uuid, ""));
+                    }
+                    return null;
+                });
     }
+
+
+
+
 
     public CompletableFuture<Void> updatePlaytimeForTheDay(PlayerPlaytime playerPlaytime) {
         CompletableFuture<Void> z = new CompletableFuture<>();
@@ -50,28 +55,37 @@ public class PlaytimeDatabase extends MySQL {
     }
 
     public CompletableFuture<Void> addPlaytimeForTheDay(UUID uuid) {
-        return CompletableFuture.supplyAsync(() -> {
-            try {
+        return getPlaytimeForTheDay(uuid).thenComposeAsync(playtime -> {
+            if (playtime == null) {
                 DateTimeFormatter dtf = DateTimeFormatter.ofPattern("M/d/yyyy");
                 LocalDateTime now = LocalDateTime.now();
                 String time = "[" + dtf.format(now) + "]";
-                Playtime playtime = getPlaytimeForTheDay(uuid).get();
-                ProxyPlayer proxyPlayer = MafanaNetworkCommunicator.getInstance().getNetworkCommunicatorDatabase().getProxyPlayerAsync(uuid).get();
-                if (proxyPlayer != null) {
-                    if(MafanaNetworkCommunicator.getInstance().getNetworkCommunicatorDatabase().getAllServerValuesAsync(proxyPlayer.getServerID()).get() != null) {
-                        if (MafanaNetworkCommunicator.getInstance().getNetworkCommunicatorDatabase().hasServerValueAsync(proxyPlayer.getServerID(), "COUNT_PLAYTIME").get()) {
-                            if (playtime == null) {
-                                List<Playtime> x = getPlaytime(uuid).get();
-                                x.add(new Playtime(uuid.toString(), time, proxyPlayer.getServerID().toString(), 0));
-                                setPlaytime(uuid, x);
+
+                return MafanaNetworkCommunicator.getInstance().getNetworkCommunicatorDatabase().getProxyPlayerAsync(uuid)
+                        .thenComposeAsync(proxyPlayer -> {
+                            if (proxyPlayer != null) {
+                                return MafanaNetworkCommunicator.getInstance().getNetworkCommunicatorDatabase()
+                                        .getAllServerValuesAsync(proxyPlayer.getServerID())
+                                        .thenComposeAsync(serverValues -> {
+                                            if (serverValues != null) {
+                                                return MafanaNetworkCommunicator.getInstance()
+                                                        .getNetworkCommunicatorDatabase().hasServerValueAsync(proxyPlayer.getServerID(), "COUNT_PLAYTIME")
+                                                        .thenApplyAsync(hasValue -> {
+                                                            if (hasValue) {
+                                                                List<Playtime> x = getPlaytime(uuid).join();
+                                                                x.add(new Playtime(uuid.toString(), time, proxyPlayer.getServerID().toString(), 0));
+                                                                setPlaytime(uuid, x).join();
+                                                            }
+                                                            return null;
+                                                        });
+                                            }
+                                            return CompletableFuture.completedFuture(null);
+                                        });
                             }
-                        }
-                    }
-                }
-            } catch (InterruptedException | ExecutionException e) {
-                throw new RuntimeException(e);
+                            return CompletableFuture.completedFuture(null);
+                        });
             }
-            return null;
+            return CompletableFuture.completedFuture(null);
         });
     }
 
@@ -127,18 +141,14 @@ public class PlaytimeDatabase extends MySQL {
     }
 
     public CompletableFuture<List<Playtime>> getPlaytime(UUID uuid) {
-        return CompletableFuture.supplyAsync(() -> {
-            String x = null;
-            try {
-                x = sqlGetter.getStringAsync(uuid, new DatabaseValue("PLAYTIME")).get();
-                Gson gson = new Gson();
-                List<Playtime> playtime = gson.fromJson(x, new TypeToken<List<Playtime>>() {
-                }.getType());
-                return playtime != null ? playtime : new ArrayList<>();
-            } catch (InterruptedException | ExecutionException e) {
-                throw new RuntimeException(e);
-            }
+        CompletableFuture<List<Playtime>> x = new CompletableFuture<>();
+        sqlGetter.getStringAsync(uuid, new DatabaseValue("PLAYTIME")).thenAcceptAsync(string -> {
+            Gson gson = new Gson();
+            List<Playtime> playtime = new ArrayList<>(gson.fromJson(string, new TypeToken<List<Playtime>>() {
+            }.getType()));
+            x.complete(playtime);
         });
+        return x;
     }
 
     @Override
