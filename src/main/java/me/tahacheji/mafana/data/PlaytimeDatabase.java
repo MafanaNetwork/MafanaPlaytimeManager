@@ -156,10 +156,8 @@ public class PlaytimeDatabase extends MySQL {
         return sqlGetter;
     }
 
-    @Override
     public void connect() {
-        super.connect();
-        if (this.isConnected()) sqlGetter.createTable("player_playtime_manager",
+        sqlGetter.createTable("player_playtime_manager",
                 new DatabaseValue("NAME", ""),
                 new DatabaseValue("PLAYTIME", ""));
     }

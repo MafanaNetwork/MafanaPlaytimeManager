@@ -42,7 +42,7 @@ public final class MafanaPlaytimeManager extends JavaPlugin {
 
     @Override
     public void onDisable() {
-        playtimeDatabase.disconnect();
+        playtimeDatabase.close();
     }
 
     public void removePlayerPlaytime(Player player) {
